@@ -1,7 +1,7 @@
-from mininet.net import Mininet_wifi
-from mininet.node import Controller, RemoteController
-from mininet.cli import CLI
+from mininet.node import Controller
 from mininet.log import setLogLevel, info
+from mn_wifi.cli import CLI_wifi
+from mn_wifi.net import Mininet_wifi
 import time
 
 # Function to log network metrics
@@ -24,10 +24,10 @@ def log_metrics(net):
 
 # Mininet-WiFi network setup
 def topology():
-    net = Mininet_wifi(controller=RemoteController)
+    net = Mininet_wifi(controller=Controller)
     
     info("*** Adding controller\n")
-    c0 = net.addController('c0', controller=RemoteController, ip='127.0.0.1', port=6633)
+    c0 = net.addController('c0', controller=Controller)
     
     info("*** Adding access points\n")
     ap1 = net.addAccessPoint('ap1', ssid='ssid-ap1', mode='g', channel='1')
@@ -77,7 +77,7 @@ def topology():
     thread.start()
     
     info("*** Running CLI\n")
-    CLI(net)
+    CLI_wifi(net)
     
     info("*** Stopping network\n")
     net.stop()
