@@ -5,25 +5,6 @@ from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.link import wmediumd
 from mn_wifi.wmediumdConnector import interference
-import time
-import threading
-
-def log_metrics(net):
-    with open("network_metrics.log", "w") as log_file:
-        log_file.write("Time,Node,RSSI,Channel,TrafficLoad,ConnectedDevices,Interference,PacketLoss,Latency\n")
-        while True:
-            for ap in net.aps:
-                rssi = ap.params.get('rssi', 'N/A')
-                channel = ap.params.get('channel', 'N/A')
-                traffic_load = ap.params.get('txpower', 'N/A')  # Example, use realistic metric
-                connected_devices = len(ap.associatedStations)
-                interference = ap.params.get('interference', 'N/A')
-                packet_loss = ap.params.get('loss', 'N/A')  # Placeholder
-                latency = ap.params.get('latency', 'N/A')  # Placeholder
-                
-                log_file.write(f"{time.time()},{ap.name},{rssi},{channel},{traffic_load},{connected_devices},{interference},{packet_loss},{latency}\n")
-                log_file.flush()
-            time.sleep(5)
 
 def topology(args):
     net = Mininet_wifi(controller=Controller, link=wmediumd, wmediumd_mode=interference)
@@ -32,6 +13,14 @@ def topology(args):
     net.addStation('sta11', position='10,20,0')
     net.addStation('sta12', position='15,25,0')
     net.addStation('sta13', position='20,30,0')
+    
+    net.addStation('sta21', position='30,40,0')
+    net.addStation('sta22', position='35,45,0')
+    net.addStation('sta23', position='40,50,0')
+    
+    net.addStation('sta31', position='50,60,0')
+    net.addStation('sta32', position='55,65,0')
+    net.addStation('sta33', position='60,70,0')
     
     ap1 = net.addAccessPoint('ap1', ssid='ssid-ap1', mode='g', channel='1', position='10,30,0')
     ap2 = net.addAccessPoint('ap2', ssid='ssid-ap2', mode='g', channel='6', position='60,30,0')
@@ -58,10 +47,6 @@ def topology(args):
     ap1.start([c1])
     ap2.start([c1])
     ap3.start([c1])
-    
-    thread = threading.Thread(target=log_metrics, args=(net,))
-    thread.daemon = True
-    thread.start()
     
     info("*** Running CLI\n")
     CLI(net)
