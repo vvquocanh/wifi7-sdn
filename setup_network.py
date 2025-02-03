@@ -1,10 +1,31 @@
 import sys
+import time
+import subprocess
 from mininet.node import Controller
 from mininet.log import setLogLevel, info
 from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.link import wmediumd
 from mn_wifi.wmediumdConnector import interference
+
+def run_iperf_test(src, dst, log_file):
+    """Run an iperf test between two stations and log the results."""
+    cmd = f"mn --wifi {src} iperf -c {dst} -t 5 -y C"
+    output = subprocess.check_output(cmd, shell=True).decode("utf-8")
+    
+    # Extract bandwidth, latency, and packet loss
+    try:
+        fields = output.split(',')
+        bandwidth = fields[8]
+        latency = fields[7]
+        packet_loss = fields[10]
+    except IndexError:
+        # If output is invalid, set values to None or some default value
+        bandwidth, latency, packet_loss = "0", "0", "0"
+    
+    # Log the metrics in the file
+    with open(log_file, "a") as log:
+        log.write(f"{int(time.time())},{src},{dst},{bandwidth},{latency},{packet_loss}\n")
 
 def topology(args):
     net = Mininet_wifi(controller=Controller, link=wmediumd, wmediumd_mode=interference)
@@ -48,6 +69,26 @@ def topology(args):
     ap2.start([c1])
     ap3.start([c1])
     
+    info("*** Starting iperf servers on stations\n")
+    # Start iperf servers on all stations
+    stations = ['sta11', 'sta12', 'sta13', 'sta21', 'sta22', 'sta23', 'sta31', 'sta32', 'sta33']
+    for sta in stations:
+        net.get(sta).cmd("iperf -s &")  # Start iperf server on each station
+
+    time.sleep(2)  # Give time for servers to start
+
+    # Log file
+    log_file = "network_diagnostics.log"
+    with open(log_file, "w") as log:
+        log.write("Time,Source,Destination,Bandwidth,Latency,Packet Loss\n")
+    
+    info("*** Running iperf tests\n")
+    # Perform iperf tests between all pairs of stations
+    for src in stations:
+        for dst in stations:
+            if src != dst:
+                run_iperf_test(src, dst, log_file)
+
     info("*** Running CLI\n")
     CLI(net)
     
