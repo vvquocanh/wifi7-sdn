@@ -5,7 +5,8 @@ from mn_wifi.node import OVSKernelAP
 from mininet.node import RemoteController
 from mn_wifi.cli import CLI
 from mininet.log import setLogLevel, info
-from mininet.link import TCLink
+from mn_wifi.link import wmediumd
+from mn_wifi.wmediumdConnector import interference
 
 import threading
 from flask import Flask, jsonify
@@ -16,6 +17,10 @@ def start_http_server(net):
     @app.route("/aps", methods=["GET"])
     def get_aps():
         aps_info = []
+        for station in net.stations:
+        	data.append({
+        		'name': station.name,
+        		'rssi': station.wintfs[0].rssi})
         return jsonify(aps_info)
 
     # Run the server on 0.0.0.0 so it’s accessible from any interface.
@@ -24,7 +29,8 @@ def start_http_server(net):
 def linear_topology():
     "Create a linear topology with 3 access points and one station per AP."
     # Use OVSKernelAP to ensure OpenFlow13 support and client isolation
-    net = Mininet_wifi(controller=RemoteController,
+    net = Mininet_wifi(controller=RemoteController, link=wmediumd,
+                       wmediumd_mode=interference, noise_th=-91, fading_cof=3,
                        accessPoint=OVSKernelAP)
 
     info("*** Creating nodes\n")
