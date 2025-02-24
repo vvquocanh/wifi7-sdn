@@ -1,8 +1,25 @@
+#!/usr/bin/python
+
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.node import OVSKernelAP
 from mininet.node import RemoteController
 from mn_wifi.cli import CLI
 from mininet.log import setLogLevel, info
+from mininet.link import TCLink
+
+import threading
+from flask import Flask, jsonify
+
+def start_http_server(net):
+    app = Flask(__name__)
+
+    @app.route("/aps", methods=["GET"])
+    def get_aps():
+        aps_info = []
+        return jsonify(aps_info)
+
+    # Run the server on 0.0.0.0 so it’s accessible from any interface.
+    app.run(host="0.0.0.0", port=9393)
 
 def linear_topology():
     "Create a linear topology with 3 access points and one station per AP."
@@ -70,6 +87,11 @@ def linear_topology():
     ap1.start([c0])
     ap2.start([c0])
     ap3.start([c0])
+    
+    # Start the HTTP server in a new thread
+    http_thread = threading.Thread(target=start_http_server, args=(net,))
+    http_thread.daemon = True
+    http_thread.start()
 
     info("*** Running CLI\n")
     CLI(net)
