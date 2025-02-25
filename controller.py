@@ -170,11 +170,9 @@ async def send_data(new_channels):
 def build_interference_graph(ap_data, interference_range=50):
     G = nx.Graph()
     
-    # Add routers as nodes with their IDs
-    for router_id, x, y in ap_data:
-        G.add_node(router_id, pos=(x, y))
+    for ap_id, x, y in ap_data:
+        G.add_node(ap_id, pos=(x, y))
     
-    # Connect interfering routers
     for i in range(len(ap_data)):
         for j in range(i + 1, len(ap_data)):
             id1, x1, y1 = ap_data[i]
@@ -189,9 +187,9 @@ def distance(p1, p2):
 
 def assign_wifi_channels(G):
     channels = [1, 6, 11]
-    coloring = {}  # Store router-to-channel mapping
+    coloring = {}
 
-    for node in sorted(G.nodes, key=lambda x: len(G[x]), reverse=True):  # Sort by degree (most connected first)
+    for node in sorted(G.nodes, key=lambda x: len(G[x]), reverse=True):
         used_channels = {coloring[neighbor] for neighbor in G.neighbors(node) if neighbor in coloring}
         for channel in channels:
             if channel not in used_channels:
