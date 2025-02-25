@@ -53,6 +53,8 @@ class SimpleSwitch13(app_manager.RyuApp):
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
 
+        asyncio.run(handler_new_access_points())
+
     def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -123,6 +125,8 @@ class SimpleSwitch13(app_manager.RyuApp):
                                   in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
 
+        if eth.ethertype == ether_types.ETH_TYPE_IP:
+            asyncio.run(handler_new_access_points())
         
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def state_change_handler(self, ev):
@@ -131,7 +135,6 @@ class SimpleSwitch13(app_manager.RyuApp):
             if datapath.id not in self.datapaths:
                 self.logger.info("Access Point connected: dpid=%s", datapath.id)
                 self.datapaths[datapath.id] = datapath
-                asyncio.run(handler_new_access_points())
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.info("Access Point disconnected: dpid=%s", datapath.id)
