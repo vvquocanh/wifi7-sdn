@@ -22,6 +22,8 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 
+import networkx as nx
+import numpy as np
 import httpx
 import asyncio
 
@@ -91,7 +93,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
 
-        #self.logger.info("packet in %s %s %s %s %s", dpid, src, dst, in_port, eth.ethertype)
+        self.logger.info("packet in %s %s %s %s %s", dpid, src, dst, in_port, eth.ethertype)
 
         # learn a mac address to avoid FLOOD next time.
         self.mac_to_port[dpid][src] = in_port
@@ -129,13 +131,12 @@ class SimpleSwitch13(app_manager.RyuApp):
             if datapath.id not in self.datapaths:
                 self.logger.info("Access Point connected: dpid=%s", datapath.id)
                 self.datapaths[datapath.id] = datapath
+                asyncio.run(handler_new_access_points())
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.info("Access Point disconnected: dpid=%s", datapath.id)
                 del self.datapaths[datapath.id]
         
-        asyncio.run(handler_new_access_points())
-
 async def get_aps():
     async with httpx.AsyncClient(timeout=5) as client:
         response = await client.get("http://192.168.1.2:9393/aps")
@@ -144,6 +145,54 @@ async def get_aps():
 async def handler_new_access_points():
     try:
         aps = await get_aps()
-        print(aps)
+        ap_data = []
+        for ap in aps:
+            ap_data.append((ap['ssid'], ap['position'][0], ap['position'][1]))
+
+        G = build_interference_graph(ap_data)
+        new_channels = assign_wifi_channels(G)
+        await send_data(new_channels)
+
     except Exception as e:
         print("Error in handler:", e)
+
+async def send_data(new_channels):
+    url = "http://192.168.1.2:9393/aps/channel"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=new_channels)
+        print(response.status_code)
+    
+
+def build_interference_graph(ap_data, interference_range=50):
+    G = nx.Graph()
+    
+    # Add routers as nodes with their IDs
+    for router_id, x, y in ap_data:
+        G.add_node(router_id, pos=(x, y))
+    
+    # Connect interfering routers
+    for i in range(len(ap_data)):
+        for j in range(i + 1, len(ap_data)):
+            id1, x1, y1 = ap_data[i]
+            id2, x2, y2 = ap_data[j]
+            if distance((x1, y1), (x2, y2)) <= interference_range:
+                G.add_edge(id1, id2)
+    
+    return G
+
+def distance(p1, p2):
+    return np.sqrt((p1[0] - p2[0])*2 + (p1[1] - p2[1])*2)
+
+def assign_wifi_channels(G):
+    channels = [1, 6, 11]
+    coloring = {}  # Store router-to-channel mapping
+
+    for node in sorted(G.nodes, key=lambda x: len(G[x]), reverse=True):  # Sort by degree (most connected first)
+        used_channels = {coloring[neighbor] for neighbor in G.neighbors(node) if neighbor in coloring}
+        for channel in channels:
+            if channel not in used_channels:
+                coloring[node] = channel
+                break
+    
+    return coloring
