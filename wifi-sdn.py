@@ -12,17 +12,11 @@ import threading
 import random
 from flask import Flask, jsonify, request
 
-def random_near(position, delta=5):
-    """
-    Return a position string close to the given base position.
-    :param position: A string in the form "x,y,z".
-    :param delta: Maximum deviation in x and y directions.
-    :return: A string "new_x,new_y,new_z".
-    """
-    x, y, z = map(float, position.split(','))
-    new_x = x + random.uniform(-delta, delta)
-    new_y = y + random.uniform(-delta, delta)
-    return f"{new_x},{new_y},{z}"
+def random_position():
+
+    new_x = random.uniform(0, 100)
+    new_y = random.uniform(0, 100)
+    return f"{new_x},{new_y},0"
 
 def start_http_server(net):
     app = Flask(__name__)
@@ -91,30 +85,9 @@ def custom_topology():
                              position=ap4_pos, protocols='OpenFlow13')
     ap5 = net.addAccessPoint('ap5', ssid='ap5-ssid', mode='g', channel='1',
                              position=ap5_pos, protocols='OpenFlow13')
-
-    # Create stations for each AP, now positioned near their respective APs.
-    # AP1 gets 4 stations.
-    sta1 = net.addStation('sta1', ip='10.0.0.1/8', position=random_near(ap1_pos))
-    
-    # AP2 gets 3 stations.
-    sta5 = net.addStation('sta5', ip='10.0.0.5/8', position=random_near(ap2_pos))
-    sta6 = net.addStation('sta6', ip='10.0.0.6/8', position=random_near(ap2_pos))
-    sta7 = net.addStation('sta7', ip='10.0.0.7/8', position=random_near(ap2_pos))
-    
-    # AP3 gets 3 stations.
-    sta8 = net.addStation('sta8', ip='10.0.0.8/8', position=random_near(ap3_pos))
-    sta9 = net.addStation('sta9', ip='10.0.0.9/8', position=random_near(ap3_pos))
-    sta10 = net.addStation('sta10', ip='10.0.0.10/8', position=random_near(ap3_pos))
-    
-    # AP4 gets 2 stations.
-    sta11 = net.addStation('sta11', ip='10.0.0.11/8', position=random_near(ap4_pos))
-    sta12 = net.addStation('sta12', ip='10.0.0.12/8', position=random_near(ap4_pos))
-    
-    # AP5 gets 1 station.
-    sta13 = net.addStation('sta13', ip='10.0.0.13/8', position=random_near(ap5_pos))
-    sta2 = net.addStation('sta2', ip='10.0.0.2/8', position=random_near(ap5_pos))
-    sta3 = net.addStation('sta3', ip='10.0.0.3/8', position=random_near(ap5_pos))
-    sta4 = net.addStation('sta4', ip='10.0.0.4/8', position=random_near(ap5_pos))
+	
+    for i in range(1, 21):
+        net.addStation(f'sta{i}', ip=f'10.0.0.{i}/8', position=random_position())
     
     info("*** Creating remote controller\n")
     c0 = net.addController('c0', controller=RemoteController,
@@ -131,30 +104,6 @@ def custom_topology():
     
     # Uncomment the next line if you want a visual plot.
     net.plotGraph(max_x=100, max_y=100)
-    
-    info("*** Associating stations with their respective APs\n")
-    # Associate stations with AP1.
-    net.addLink(sta1, ap1)
-    
-    # Associate stations with AP2.
-    net.addLink(sta5, ap2)
-    net.addLink(sta6, ap2)
-    net.addLink(sta7, ap2)
-    
-    # Associate stations with AP3.
-    net.addLink(sta8, ap3)
-    net.addLink(sta9, ap3)
-    net.addLink(sta10, ap3)
-    
-    # Associate stations with AP4.
-    net.addLink(sta11, ap4)
-    net.addLink(sta12, ap4)
-    
-    # Associate station with AP5.
-    net.addLink(sta13, ap5)
-    net.addLink(sta2, ap5)
-    net.addLink(sta3, ap5)
-    net.addLink(sta4, ap5)
     
     info("*** Connecting APs in a star topology (using AP5 as the central node)\n")
     net.addLink(ap1, ap5)
