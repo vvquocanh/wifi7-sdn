@@ -22,6 +22,8 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 
+import httpx
+import asyncio
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -89,7 +91,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
 
-        self.logger.info("packet in %s %s %s %s %s", dpid, src, dst, in_port, eth.ethertype)
+        #self.logger.info("packet in %s %s %s %s %s", dpid, src, dst, in_port, eth.ethertype)
 
         # learn a mac address to avoid FLOOD next time.
         self.mac_to_port[dpid][src] = in_port
@@ -131,3 +133,17 @@ class SimpleSwitch13(app_manager.RyuApp):
             if datapath.id in self.datapaths:
                 self.logger.info("Access Point disconnected: dpid=%s", datapath.id)
                 del self.datapaths[datapath.id]
+        
+        asyncio.run(handler_new_access_points())
+
+async def get_aps():
+    async with httpx.AsyncClient(timeout=5) as client:
+        response = await client.get("http://192.168.1.2:9393/aps")
+        return response.json()
+
+async def handler_new_access_points():
+    try:
+        aps = await get_aps()
+        print(aps)
+    except Exception as e:
+        print("Error in handler:", e)
