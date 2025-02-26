@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.node import OVSKernelAP
 from mininet.node import RemoteController
@@ -21,20 +23,6 @@ def start_http_server(net):
     
     # Add a lock for synchronizing access to network nodes
     ap_lock = threading.Lock()
-
-    @app.route("/network_metrics", methods=["GET"])
-    def get_network_metrics():
-        data = []
-        with ap_lock:
-            for station in net.stations:
-                # Make sure to wait for output to complete
-                output = station.cmd(f'iw dev {station.name}-wlan0 link')
-                station.waitOutput()
-                data.append({
-                    'name': station.name,
-                    'rssi': output
-                })
-        return jsonify(data)
 
     @app.route("/aps", methods=["GET"])
     def get_aps():
