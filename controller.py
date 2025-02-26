@@ -21,11 +21,12 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
+from ryu.lib import hub
 
 import networkx as nx
 import numpy as np
 import httpx
-import asyncio
+import time
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -34,6 +35,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         super(SimpleSwitch13, self)._init_(*args, **kwargs)
         self.mac_to_port = {}
         self.datapaths = {}
+        self.init = False
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -53,7 +55,14 @@ class SimpleSwitch13(app_manager.RyuApp):
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
 
-        asyncio.run(handler_new_access_points())
+        # Start a new thread to wait before calling handler_new_access_points
+        hub.spawn(self._delayed_handler)
+
+    def _delayed_handler(self):
+        self.logger.info("Waiting for 10 seconds before initializing access points...")
+        hub.sleep(10)
+        self.logger.info("Initializing access points now")
+        handler_new_access_points()
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         ofproto = datapath.ofproto
@@ -124,9 +133,6 @@ class SimpleSwitch13(app_manager.RyuApp):
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
-
-        if eth.ethertype == ether_types.ETH_TYPE_IP:
-            asyncio.run(handler_new_access_points())
         
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def state_change_handler(self, ev):
@@ -135,37 +141,46 @@ class SimpleSwitch13(app_manager.RyuApp):
             if datapath.id not in self.datapaths:
                 self.logger.info("Access Point connected: dpid=%s", datapath.id)
                 self.datapaths[datapath.id] = datapath
+        
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.info("Access Point disconnected: dpid=%s", datapath.id)
                 del self.datapaths[datapath.id]
         
-async def get_aps():
-    async with httpx.AsyncClient(timeout=5) as client:
-        response = await client.get("http://192.168.1.2:9393/aps")
-        return response.json()
-
-async def handler_new_access_points():
+def get_aps():
     try:
-        aps = await get_aps()
+        # Use httpx synchronously
+        with httpx.Client(timeout=5) as client:
+            response = client.get("http://192.168.1.2:9393/aps")
+            return response.json()
+    except httpx.HTTPError as e:
+        print(f"Error getting APs: {e}")
+        return []
+
+def handler_new_access_points():
+    try:
+        aps = get_aps()
         ap_data = []
         for ap in aps:
             ap_data.append((ap['ssid'], ap['position'][0], ap['position'][1]))
 
         G = build_interference_graph(ap_data)
         new_channels = assign_wifi_channels(G)
-        await send_data(new_channels)
+        send_data(new_channels)
 
     except Exception as e:
         print("Error in handler:", e)
 
-async def send_data(new_channels):
+def send_data(new_channels):
     url = "http://192.168.1.2:9393/aps/channel"
     
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=new_channels)
-        print(response.status_code)
-    
+    try:
+        # Use httpx synchronously
+        with httpx.Client() as client:
+            response = client.post(url, json=new_channels)
+            print(response.status_code)
+    except httpx.HTTPError as e:
+        print(f"Error sending data: {e}")
 
 def build_interference_graph(ap_data, interference_range=50):
     G = nx.Graph()
